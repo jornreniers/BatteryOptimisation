@@ -1,0 +1,10 @@
+
+venv/
+Results/
+Data/
+
+__pycache__
+*.pyc
+
+uv.lock
+.vscode
