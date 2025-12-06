@@ -1,35 +1,19 @@
 import pandas as pd
-import numpy as np
 
 from src import Settings
 from src import OptimisationModel as om
-from src import OptimisationVariable as ov
+from src import marketModelBuillder as mmb
+from src import batteryModelBuillder as bmb
 
 
-def run(dfs: list[pd.DataFrame]):
+def run(
+    dfs: list[pd.DataFrame], sets: Settings.Settings, N: int
+) -> om.OptimisationModel:
     mod = om.OptimisationModel()
-    sets = Settings.Settings()
 
-    N = 10
+    mod = mmb.add_halfhour_market(marketData=dfs[0], sets=sets, mod=mod, N=N)
+    mod = mmb.add_hour_market(marketData=dfs[1], sets=sets, mod=mod, N=N)
+    mod = bmb.add_soc(sets=sets, mod=mod, N=N)
+    mod = bmb.add_power_limit(sets=sets, mod=mod, N=N)
 
-    # print(dfs[0].head())
-    # print(dfs[0][1])
-
-    hh_market = ov.OptimisationVariable(
-        name="hh_market",
-        rel_time_step=1,
-        lower_limit=-np.ones(shape=(N,)) * sets.pmax_cha_MW,
-        upper_limit=np.ones(shape=(N,)) * sets.pmax_dis_MW,
-        objective_function=dfs[0]
-        .loc[0 : N - 1, sets.data_struct_colname_price]
-        .to_numpy(),
-    )
-    mod.add_variable(hh_market)
-
-    res = mod.optimise()
-    print(res.status)
-    print(f"The objective function is {res.fun} which is achieved with")
-    for v in mod.variables:
-        print(
-            f"{v.name} with values {res.x[v.start_index : v.start_index + N * v.relative_time_step]}"
-        )
+    return mod

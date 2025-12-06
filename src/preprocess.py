@@ -8,9 +8,7 @@ Due to the low complexity this is all in one function rather than an ETL pipelin
 """
 
 
-def preprocess_run() -> list[pd.DataFrame]:
-    sets = Settings.Settings()
-
+def preprocess_run(sets: Settings.Settings) -> list[pd.DataFrame]:
     dfs = []
     for i in range(len(sets.data_file_sheets)):
         df = pd.read_excel(

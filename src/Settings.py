@@ -31,3 +31,5 @@ class Settings:
         self.data_file_colname_time = "Unnamed: 0"
         self.data_struct_colname_time = "timestamp"
         self.data_struct_colname_price = "price"
+
+        self.soc_ini = 0.5  # initial SoC
