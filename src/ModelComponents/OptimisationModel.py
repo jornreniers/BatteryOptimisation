@@ -1,6 +1,8 @@
+import math
 import numpy as np
 from scipy import optimize
-from src import OptimisationVariable as ov
+from src.ModelComponents import OptimisationVariable as ov
+from src.ModelComponents import OptimisationConstraint as oc
 
 
 class OptimisationModel:
@@ -18,17 +20,19 @@ class OptimisationModel:
         self.constraint_upper_bound = np.array([])
 
     """
-    Add a variable to the optimisation model
+    Add an optimisation variable to the optimisation model
     this automatically extends the arrays and matrices of the model.
     The constraints are padded with 0s for this variable
     """
 
     def add_variable(self, v: ov.OptimisationVariable):
-        # Add the variable
+        # Tell the variable where in the array it sits
         k = 0
         for vprev in self.variables.values():
             k = k + len(vprev.lower_limit)
         v.start_index = k
+
+        # add it to the model
         self.variables[v.name] = v
         self.objective_function = np.concat(
             [self.objective_function, v.objective_function]
@@ -52,15 +56,27 @@ class OptimisationModel:
                 ]
             )
 
-        # for vs in self.variables:
-        #     print(f"variable {vs.name} from {vs.start_index}")
-
     """
-    Add a constraint to the model.
-    This represents one row of A, lb and ub
+    We provide two ways to add constraints.
+
+    The simplest one is using the OptimisationConstrant class.
+    If you have a constraint that is not identical at each point in time
+    you can add it manually using the second function.
+    However, then you have to make sure the columns are correct.
     """
 
-    def add_constraint(self, arow: np.ndarray, lb: float, ub: float):
+    def add_constraint(self, c: oc.OptimisationConstraint, N: int):
+        for i in range(N):
+            a = np.zeros_like(self.lower_limit)
+            for varname in c.variable_factors.keys():
+                # support variables with larger time steps
+                relindex = math.floor(i / self.variables[varname].relative_time_step)
+                a[self.variables[varname].start_index + relindex] = c.variable_factors[
+                    varname
+                ]
+            self.add_constraint_manual(arow=a, lb=c.lower_limit, ub=c.upper_limit)
+
+    def add_constraint_manual(self, arow: np.ndarray, lb: float, ub: float):
         assert len(arow) == len(self.lower_limit), (
             "The constraint must have the same number of columns as there are variables in the model"
         )

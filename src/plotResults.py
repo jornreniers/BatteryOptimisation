@@ -6,10 +6,8 @@ from plotly.subplots import make_subplots
 
 
 from plotly import graph_objects as go
-from plotly import express as px
 from src import Settings
-from src import OptimisationModel as om
-from src import OptimisationVariable as ov
+from src.ModelComponents import OptimisationModel as om
 
 
 def plot_market_details(
@@ -40,13 +38,13 @@ def plot_market_details(
     # Half-hour market
     thh = dfs[0].loc[0 : N - 1, sets.data_struct_colname_time].to_numpy()
     fig.add_trace(
-        go.Scatter(x=thh, y=vars["hh_sell"], name="sold"),
+        go.Scatter(x=thh, y=vars[sets.varname_halfhour_sell], name="sold"),
         row=1,
         col=1,
         secondary_y=False,
     )
     fig.add_trace(
-        go.Scatter(x=thh, y=vars["hh_buy"], name="bought"),
+        go.Scatter(x=thh, y=vars[sets.varname_halfhour_buy], name="bought"),
         row=1,
         col=1,
         secondary_y=False,
@@ -66,13 +64,13 @@ def plot_market_details(
     n = (int)(N / rel_time_step)
     th = dfs[1].loc[0 : n - 1, sets.data_struct_colname_time].to_numpy()
     fig.add_trace(
-        go.Scatter(x=th, y=vars["h_sell"], name="sold"),
+        go.Scatter(x=th, y=vars[sets.varname_hour_sell], name="sold"),
         row=2,
         col=1,
         secondary_y=False,
     )
     fig.add_trace(
-        go.Scatter(x=th, y=vars["h_buy"], name="bought"),
+        go.Scatter(x=th, y=vars[sets.varname_hour_buy], name="bought"),
         row=2,
         col=1,
         secondary_y=False,
@@ -103,7 +101,9 @@ def plot_market_details(
     # Half-hour market
     fig.add_trace(
         go.Bar(
-            x=thh, y=vars["hh_sell"] + vars["hh_buy"], name="Volume, pos=sell, neg=buy"
+            x=thh,
+            y=vars[sets.varname_halfhour_sell] + vars[sets.varname_halfhour_buy],
+            name="Volume, pos=sell, neg=buy",
         ),
         row=1,
         col=1,
@@ -122,7 +122,9 @@ def plot_market_details(
     # Hourly market
     fig.add_trace(
         go.Bar(
-            x=th, y=vars["h_sell"] + vars["h_buy"], name="Volume, pos=sell, neg=buy"
+            x=th,
+            y=vars[sets.varname_hour_sell] + vars[sets.varname_hour_buy],
+            name="Volume, pos=sell, neg=buy",
         ),
         row=2,
         col=1,
@@ -164,8 +166,8 @@ def plot_battery_details(
     )
 
     thh = dfs[0].loc[0 : N - 1, sets.data_struct_colname_time].to_numpy()
-    phalf = vars["hh_sell"] + vars["hh_buy"]
-    phour = vars["h_sell"] + vars["h_buy"]
+    phalf = vars[sets.varname_halfhour_sell] + vars[sets.varname_halfhour_buy]
+    phour = vars[sets.varname_hour_sell] + vars[sets.varname_hour_buy]
     p = phalf + np.repeat(phour, 2)
 
     fig.add_trace(
@@ -178,7 +180,7 @@ def plot_battery_details(
     fig.add_trace(
         go.Scatter(
             x=thh,
-            y=vars["soc"],
+            y=vars[sets.varname_soc],
             name="soc",
         ),
         row=2,

@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 
 from src import Settings
-from src import OptimisationModel as om
-from src import OptimisationVariable as ov
+from src.ModelComponents import OptimisationModel as om
+from src.ModelComponents import OptimisationVariable as ov
+from src.ModelComponents import OptimisationConstraint as oc
 
 """
 Add basic trading on the half-hour market to the model.
@@ -22,36 +23,34 @@ def add_halfhour_market(
     # buying = charging power = negative (and costs money)
     # selling = discharging = positive (and earns money)
     # objective = -price because we minimise
+    # add in degradation cost
     # * 0.5 because each time step is only half an hour
+    p = -marketData.loc[
+        0 : N - 1, sets.data_struct_colname_price
+    ].to_numpy() + sets.degradation_cost_gbpPerMWh * np.ones(shape=(N))
     hh_buy = ov.OptimisationVariable(
-        name="hh_buy",  # charge
+        name=sets.varname_halfhour_buy,  # charge
         rel_time_step=1,
         lower_limit=-np.ones(shape=(N,)) * sets.pmax_cha_MW,
         upper_limit=np.zeros(shape=(N,)),
-        objective_function=-marketData.loc[
-            0 : N - 1, sets.data_struct_colname_price
-        ].to_numpy()
-        * 0.5,
+        objective_function=p * 0.5,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(hh_buy)
 
     hh_sell = ov.OptimisationVariable(
-        name="hh_sell",  # discharge
+        name=sets.varname_halfhour_sell,  # discharge
         rel_time_step=1,
         lower_limit=np.zeros(shape=(N,)),
         upper_limit=np.ones(shape=(N,)) * sets.pmax_dis_MW,
-        objective_function=-marketData.loc[
-            0 : N - 1, sets.data_struct_colname_price
-        ].to_numpy()
-        * 0.5,
+        objective_function=p * 0.5,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(hh_sell)
 
     # sign is 0 for charge (negative), and 1 for discharge (positive)
     power_sign = ov.OptimisationVariable(
-        name="sign",
+        name=sets.varname_power_sign,
         rel_time_step=1,
         lower_limit=np.zeros(shape=(N,)),
         upper_limit=np.ones(shape=(N,)),
@@ -65,22 +64,33 @@ def add_halfhour_market(
     # ll = lower limit, ul = upper limit on a varable.
     # ll <= Pdischarge <= ul * sign
     # -inf <= Pdischarge - ul*sign <= 0
-    for i in range(N):
-        a = np.zeros_like(mod.lower_limit)
-        a[mod.variables["hh_sell"].start_index + i] = 1
-        a[mod.variables["sign"].start_index + i] = -mod.variables[
-            "hh_sell"
-        ].upper_limit[i]
-        mod.add_constraint(arow=a, lb=-np.inf, ub=0)
+    discharge_constraint = oc.OptimisationConstraint(
+        name="binary_for_discharge",
+        variable_factors={
+            sets.varname_halfhour_sell: 1,
+            sets.varname_power_sign: -mod.variables[
+                sets.varname_halfhour_sell
+            ].upper_limit[0],
+        },
+        lower_limit=-np.inf,
+        upper_limit=0,
+    )
+    mod.add_constraint(c=discharge_constraint, N=N)
+
     # ll(1-sign) <= Pcharge <= ul
     # ll <= Pcharge + sign*ll <= inf
-    for i in range(N):
-        a = np.zeros_like(mod.lower_limit)
-        a[mod.variables["hh_buy"].start_index + i] = 1
-        a[mod.variables["sign"].start_index + i] = mod.variables["hh_buy"].lower_limit[
-            i
-        ]
-        mod.add_constraint(arow=a, lb=mod.variables["hh_buy"].lower_limit[i], ub=np.inf)
+    charge_constraint = oc.OptimisationConstraint(
+        name="binary_for_charge",
+        variable_factors={
+            sets.varname_halfhour_buy: 1,
+            sets.varname_power_sign: -mod.variables[
+                sets.varname_halfhour_buy
+            ].lower_limit[0],
+        },
+        lower_limit=mod.variables[sets.varname_halfhour_buy].lower_limit[0],
+        upper_limit=np.inf,
+    )
+    mod.add_constraint(c=charge_constraint, N=N)
 
     return mod
 
@@ -102,26 +112,25 @@ def add_hour_market(
     rel_time_step = 2
     n = (int)(N / rel_time_step)
 
+    p = -marketData.loc[
+        0 : n - 1, sets.data_struct_colname_price
+    ].to_numpy() + sets.degradation_cost_gbpPerMWh * np.ones(shape=(n))
     h_buy = ov.OptimisationVariable(
-        name="h_buy",  # charge
+        name=sets.varname_hour_buy,  # charge
         rel_time_step=rel_time_step,
         lower_limit=-np.ones(shape=(n,)) * sets.pmax_cha_MW,
         upper_limit=np.zeros(shape=(n,)),
-        objective_function=-marketData.loc[
-            0 : n - 1, sets.data_struct_colname_price
-        ].to_numpy(),
+        objective_function=p,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(h_buy)
 
     h_sell = ov.OptimisationVariable(
-        name="h_sell",  # discharge
+        name=sets.varname_hour_sell,  # discharge
         rel_time_step=rel_time_step,
         lower_limit=np.zeros(shape=(n,)),
         upper_limit=np.ones(shape=(n,)) * sets.pmax_dis_MW,
-        objective_function=-marketData.loc[
-            0 : n - 1, sets.data_struct_colname_price
-        ].to_numpy(),
+        objective_function=p,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(h_sell)
@@ -135,21 +144,32 @@ def add_hour_market(
     # ll = lower limit, ul = upper limit on a varable.
     # ll <= Pdischarge <= ul * sign
     # -inf <= Pdischarge - ul*sign <= 0
-    for i in range(N):
-        k = math.floor(i / 2)
-        a = np.zeros_like(mod.lower_limit)
-        a[mod.variables["h_sell"].start_index + k] = 1
-        a[mod.variables["sign"].start_index + i] = -mod.variables["h_sell"].upper_limit[
-            k
-        ]
-        mod.add_constraint(arow=a, lb=-np.inf, ub=0)
+    discharge_constraint = oc.OptimisationConstraint(
+        name="binary_for_discharge_hour",
+        variable_factors={
+            sets.varname_hour_sell: 1,
+            sets.varname_power_sign: -mod.variables[sets.varname_hour_sell].upper_limit[
+                0
+            ],
+        },
+        lower_limit=-np.inf,
+        upper_limit=0,
+    )
+    mod.add_constraint(c=discharge_constraint, N=N)
+
     # ll(1-sign) <= Pcharge <= ul
     # ll <= Pcharge + sign*ll <= inf
-    for i in range(N):
-        k = math.floor(i / 2)
-        a = np.zeros_like(mod.lower_limit)
-        a[mod.variables["h_buy"].start_index + k] = 1
-        a[mod.variables["sign"].start_index + i] = mod.variables["h_buy"].lower_limit[k]
-        mod.add_constraint(arow=a, lb=mod.variables["h_buy"].lower_limit[k], ub=np.inf)
+    charge_constraint = oc.OptimisationConstraint(
+        name="binary_for_charge_hour",
+        variable_factors={
+            sets.varname_hour_buy: 1,
+            sets.varname_power_sign: -mod.variables[sets.varname_hour_buy].lower_limit[
+                0
+            ],
+        },
+        lower_limit=mod.variables[sets.varname_hour_buy].lower_limit[0],
+        upper_limit=np.inf,
+    )
+    mod.add_constraint(c=charge_constraint, N=N)
 
     return mod

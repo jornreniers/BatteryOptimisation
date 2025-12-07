@@ -1,6 +1,8 @@
 from src import preprocess
 from src import Settings
-from src import modelBuilder as mb
+from src.ModelComponents import OptimisationModel as om
+from src import marketModelBuillder as mmb
+from src import batteryModelBuillder as bmb
 from src import plotResults as pl
 
 
@@ -8,9 +10,14 @@ def main():
     sets = Settings.Settings()
     N = 48 * 7
 
-    print("Build the model")
     dfs = preprocess.preprocess_run(sets=sets)
-    mod = mb.run(dfs=dfs, sets=sets, N=N)
+
+    print("Build the model")
+    mod = om.OptimisationModel()
+    mod = mmb.add_halfhour_market(marketData=dfs[0], sets=sets, mod=mod, N=N)
+    mod = mmb.add_hour_market(marketData=dfs[1], sets=sets, mod=mod, N=N)
+    mod = bmb.add_soc(sets=sets, mod=mod, N=N)
+    mod = bmb.add_power_limit(sets=sets, mod=mod, N=N)
 
     # print(mod.objective_function)
 
