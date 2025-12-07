@@ -6,6 +6,20 @@ from src.ModelComponents import OptimisationModel as om
 from src.ModelComponents import OptimisationVariable as ov
 from src.ModelComponents import OptimisationConstraint as oc
 
+"""
+Add the variable with the SoC
+
+This is a fraction between 0 and 1 and is the
+cumulative sum of the net energy in and out of the battery.
+
+We account for efficiency losses, but not for degradation
+because the latter would make this a quadratic problem
+(power / capacity). If you want to add degradation,
+the best approach is to swap to a rolling-window optimisation and 
+to reduce the nominal capacity in the next window by the amount
+of degradation seen in the previous window.
+"""
+
 
 def add_soc(
     sets: Settings.Settings, mod: om.OptimisationModel, N: int
@@ -25,7 +39,7 @@ def add_soc(
     # Constraint for SoC:
     # soc(t) = soc(t-1) - P / capacity * time_step
     # capacity is in MWh, power in MW so the time step is 0.5
-    cap = -0.5 / sets.capacity_MWh
+    cap = -sets.base_time_step_h / sets.capacity_MWh
     # NOTE: this constraint looks differently for the first time step
     # and it has off-diagonal elements (t-1)
     # we therefore add it manually
@@ -53,7 +67,7 @@ def add_soc(
 
 
 """
-Previously we constrained the individual powers to each market
+Previously we limited the individual powers to each market
 However, the battery receives the sum of both which needs to be below its limit
 
 NOTE: it is not specified whether the maximum power applies before or after losses

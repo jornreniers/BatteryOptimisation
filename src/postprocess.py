@@ -9,6 +9,10 @@ from plotly import graph_objects as go
 from src import Settings
 from src.ModelComponents import OptimisationModel as om
 
+"""
+Plot traded volumes and revenue
+"""
+
 
 def plot_market_details(
     mod: om.OptimisationModel,
@@ -24,78 +28,83 @@ def plot_market_details(
             v.start_index : v.start_index + (int)(N / v.relative_time_step)
         ]
 
-    # plot power bought & sold separately to validate constraints are met
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        subplot_titles=["half hour market", "hour market"],
-        specs=[
-            [{"secondary_y": True}],
-            [{"secondary_y": True}],
-        ],
-    )
-    # Half-hour market
     thh = dfs[0].loc[0 : N - 1, sets.data_struct_colname_time].to_numpy()
-    fig.add_trace(
-        go.Scatter(x=thh, y=vars[sets.varname_halfhour_sell], name="sold"),
-        row=1,
-        col=1,
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(x=thh, y=vars[sets.varname_halfhour_buy], name="bought"),
-        row=1,
-        col=1,
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=thh,
-            y=dfs[0].loc[0 : N - 1, sets.data_struct_colname_price].to_numpy(),
-            name="price",
-        ),
-        row=1,
-        col=1,
-        secondary_y=True,
-    )
-    # Hourly market
-    rel_time_step = 2
-    n = (int)(N / rel_time_step)
+    n = (int)(N / mod.variables[sets.varname_hour_buy].relative_time_step)
     th = dfs[1].loc[0 : n - 1, sets.data_struct_colname_time].to_numpy()
-    fig.add_trace(
-        go.Scatter(x=th, y=vars[sets.varname_hour_sell], name="sold"),
-        row=2,
-        col=1,
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(x=th, y=vars[sets.varname_hour_buy], name="bought"),
-        row=2,
-        col=1,
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=th,
-            y=dfs[1].loc[0 : n - 1, sets.data_struct_colname_price].to_numpy(),
-            name="price",
-        ),
-        row=2,
-        col=1,
-        secondary_y=True,
-    )
-    fig.write_html("Results/market_buy_sell_detail.html")
+
+    # # plot power bought & sold separately to validate constraints are met
+    # fig = make_subplots(
+    #     rows=2,
+    #     cols=1,
+    #     shared_xaxes=True,
+    #     subplot_titles=["half hour market", "hour market"],
+    #     specs=[
+    #         [{"secondary_y": True}],
+    #         [{"secondary_y": True}],
+    #     ],
+    # )
+    # # Half-hour market
+    #
+    # fig.add_trace(
+    #     go.Scatter(x=thh, y=vars[sets.varname_halfhour_sell], name="sold"),
+    #     row=1,
+    #     col=1,
+    #     secondary_y=False,
+    # )
+    # fig.add_trace(
+    #     go.Scatter(x=thh, y=vars[sets.varname_halfhour_buy], name="bought"),
+    #     row=1,
+    #     col=1,
+    #     secondary_y=False,
+    # )
+    # fig.add_trace(
+    #     go.Scatter(
+    #         x=thh,
+    #         y=dfs[0].loc[0 : N - 1, sets.data_struct_colname_price].to_numpy(),
+    #         name="price",
+    #     ),
+    #     row=1,
+    #     col=1,
+    #     secondary_y=True,
+    # )
+    # # Hourly market
+    # rel_time_step = 2
+    #
+    # fig.add_trace(
+    #     go.Scatter(x=th, y=vars[sets.varname_hour_sell], name="sold"),
+    #     row=2,
+    #     col=1,
+    #     secondary_y=False,
+    # )
+    # fig.add_trace(
+    #     go.Scatter(x=th, y=vars[sets.varname_hour_buy], name="bought"),
+    #     row=2,
+    #     col=1,
+    #     secondary_y=False,
+    # )
+    # fig.add_trace(
+    #     go.Scatter(
+    #         x=th,
+    #         y=dfs[1].loc[0 : n - 1, sets.data_struct_colname_price].to_numpy(),
+    #         name="price",
+    #     ),
+    #     row=2,
+    #     col=1,
+    #     secondary_y=True,
+    # )
+    # fig.write_html("Results/market_buy_sell_detail.html")
 
     # plot net power of each market to give an overview
     fig = make_subplots(
-        rows=2,
+        rows=3,
         cols=1,
         shared_xaxes=True,
-        subplot_titles=["half hour market", "hour market"],
+        vertical_spacing=0.05,
+        subplot_titles=["half hour market", "hour market", "cumulative revenue"],
         specs=[
             [{"secondary_y": True}],
             [{"secondary_y": True}],
+            [{"secondary_y": False}],
         ],
     )
     # Half-hour market
@@ -103,7 +112,7 @@ def plot_market_details(
         go.Bar(
             x=thh,
             y=vars[sets.varname_halfhour_sell] + vars[sets.varname_halfhour_buy],
-            name="Volume, pos=sell, neg=buy",
+            name="Volume [MW], pos=sell, neg=buy",
         ),
         row=1,
         col=1,
@@ -113,7 +122,7 @@ def plot_market_details(
         go.Scatter(
             x=thh,
             y=dfs[0].loc[0 : N - 1, sets.data_struct_colname_price].to_numpy(),
-            name="price",
+            name="price [£/MWh]",
         ),
         row=1,
         col=1,
@@ -124,7 +133,7 @@ def plot_market_details(
         go.Bar(
             x=th,
             y=vars[sets.varname_hour_sell] + vars[sets.varname_hour_buy],
-            name="Volume, pos=sell, neg=buy",
+            name="Volume [MW], pos=sell, neg=buy",
         ),
         row=2,
         col=1,
@@ -134,13 +143,43 @@ def plot_market_details(
         go.Scatter(
             x=th,
             y=dfs[1].loc[0 : n - 1, sets.data_struct_colname_price].to_numpy(),
-            name="price",
+            name="price [£/MWh]",
         ),
         row=2,
         col=1,
         secondary_y=True,
     )
+
+    # Compute the total profit
+    # keep the hourly revenue constant over a half-hour period
+    revenue_hh = (
+        (vars[sets.varname_halfhour_sell] + vars[sets.varname_halfhour_buy])
+        * dfs[0].loc[0 : N - 1, sets.data_struct_colname_price].to_numpy()
+        * 0.2
+    )
+    revenue_h = (vars[sets.varname_hour_sell] + vars[sets.varname_hour_buy]) * dfs[
+        1
+    ].loc[0 : n - 1, sets.data_struct_colname_price].to_numpy()
+    revenue_h = np.repeat(revenue_h, 2)
+    profit = np.cumsum(revenue_h + revenue_hh)
+    fig.add_trace(
+        go.Scatter(
+            x=thh,
+            y=profit,
+            name="revenue [£]",
+        ),
+        row=3,
+        col=1,
+    )
+
     fig.write_html("Results/market_overview.html")
+
+
+"""
+Plot the net traded power and SoC.
+Note that the battery power (which affects SoC) is different
+from the net traded power due to the losses.
+"""
 
 
 def plot_battery_details(
@@ -172,7 +211,9 @@ def plot_battery_details(
 
     fig.add_trace(
         go.Bar(
-            x=thh, y=p, name="net traded Volume, pos=sell=discharge, neg=buy=charge"
+            x=thh,
+            y=p,
+            name="net traded Volume [MW], pos=sell=discharge, neg=buy=charge",
         ),
         row=1,
         col=1,
@@ -181,7 +222,7 @@ def plot_battery_details(
         go.Scatter(
             x=thh,
             y=vars[sets.varname_soc],
-            name="soc",
+            name="soc =[-]",
         ),
         row=2,
         col=1,
@@ -214,35 +255,3 @@ def plot_results(
         dfs=dfs,
         sets=sets,
     )
-
-    vars = dict[str, np.ndarray]()
-    for v in mod.variables.values():
-        vars[v.name] = result.x[
-            v.start_index : v.start_index + (int)(N / v.relative_time_step)
-        ]
-    thh = dfs[0].loc[0 : N - 1, sets.data_struct_colname_time].to_numpy()
-    # Hourly market
-    rel_time_step = 2
-    n = (int)(N / rel_time_step)
-    th = dfs[1].loc[0 : n - 1, sets.data_struct_colname_time].to_numpy()
-
-    fig = make_subplots(rows=1, cols=1)
-    fig.add_trace(
-        go.Scatter(
-            x=thh,
-            y=dfs[0].loc[0 : N - 1, sets.data_struct_colname_price].to_numpy(),
-            name="half-hourly price",
-        ),
-        row=1,
-        col=1,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=th,
-            y=dfs[1].loc[0 : n - 1, sets.data_struct_colname_price].to_numpy(),
-            name="hourly price",
-        ),
-        row=1,
-        col=1,
-    )
-    fig.write_html("Results/price_detail.html")

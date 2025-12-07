@@ -34,6 +34,7 @@ class Settings:
         ]
 
         # processing
+        self.base_time_step_h = 0.5
         self.data_struct_colname_time = "timestamp"
         self.data_struct_colname_price = "price"
 

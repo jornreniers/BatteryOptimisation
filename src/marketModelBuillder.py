@@ -1,4 +1,3 @@
-import math
 import pandas as pd
 import numpy as np
 
@@ -11,8 +10,8 @@ from src.ModelComponents import OptimisationConstraint as oc
 Add basic trading on the half-hour market to the model.
 
 This adds three optimisation variables:
-buying (charge power)
-selling (discharge power)
+buying (charge power, negative values)
+selling (discharge power, positive values)
 sign (binary variable indicating whether we're buying or selling)
 """
 
@@ -20,20 +19,18 @@ sign (binary variable indicating whether we're buying or selling)
 def add_halfhour_market(
     marketData: pd.DataFrame, sets: Settings.Settings, mod: om.OptimisationModel, N: int
 ) -> om.OptimisationModel:
-    # buying = charging power = negative (and costs money)
-    # selling = discharging = positive (and earns money)
-    # objective = -price because we minimise
-    # add in degradation cost
+    # objective = -price because we minimise (max(Q*p) = min(-Q*p))
+    # add in basic degradation cost to avoid cycling over marginal price differences
     # * 0.5 because each time step is only half an hour
     p = -marketData.loc[
         0 : N - 1, sets.data_struct_colname_price
-    ].to_numpy() + sets.degradation_cost_gbpPerMWh * np.ones(shape=(N))
+    ].to_numpy() + sets.degradation_cost_gbpPerMWh * np.ones(shape=(N,))
     hh_buy = ov.OptimisationVariable(
         name=sets.varname_halfhour_buy,  # charge
         rel_time_step=1,
         lower_limit=-np.ones(shape=(N,)) * sets.pmax_cha_MW,
         upper_limit=np.zeros(shape=(N,)),
-        objective_function=p * 0.5,
+        objective_function=p * sets.base_time_step_h,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(hh_buy)
@@ -43,7 +40,7 @@ def add_halfhour_market(
         rel_time_step=1,
         lower_limit=np.zeros(shape=(N,)),
         upper_limit=np.ones(shape=(N,)) * sets.pmax_dis_MW,
-        objective_function=p * 0.5,
+        objective_function=p * sets.base_time_step_h,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(hh_sell)
@@ -106,9 +103,7 @@ we just add constraints for the actions in the hour market too
 def add_hour_market(
     marketData: pd.DataFrame, sets: Settings.Settings, mod: om.OptimisationModel, N: int
 ) -> om.OptimisationModel:
-    # buying = charging power = negative (and costs money)
-    # selling = discharging = positive (and earns money)
-    # objective = -price because we minimise
+    # These variables operate over an hour, which is two base time steps
     rel_time_step = 2
     n = (int)(N / rel_time_step)
 
@@ -120,7 +115,7 @@ def add_hour_market(
         rel_time_step=rel_time_step,
         lower_limit=-np.ones(shape=(n,)) * sets.pmax_cha_MW,
         upper_limit=np.zeros(shape=(n,)),
-        objective_function=p,
+        objective_function=p * sets.base_time_step_h * rel_time_step,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(h_buy)
@@ -130,7 +125,7 @@ def add_hour_market(
         rel_time_step=rel_time_step,
         lower_limit=np.zeros(shape=(n,)),
         upper_limit=np.ones(shape=(n,)) * sets.pmax_dis_MW,
-        objective_function=p,
+        objective_function=p * sets.base_time_step_h * rel_time_step,
         variable_type=ov.VariableType.CONTINUOUS,
     )
     mod.add_variable(h_sell)
